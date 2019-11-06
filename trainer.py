@@ -32,12 +32,17 @@ class Trainer(object):
             str_config += k[:3] + str(v) + '-'
         return str_config[:-1]
 
-    def train_model(self, model, data_provider, epoch_num):
+    def _run_epoch(self, data_provider):
+        pass
+
+    def train_model(self, model, data_provider, max_epoch):
         with tf.Session() as sess:
             # build model
             model.build()
 
-
             # initialize variables
             sess.run([tf.global_variables_initializer()])
+            for epoch_num in range(max_epoch):
+                loss, preds, labels = self._run_epoch(data_provider)
+
 

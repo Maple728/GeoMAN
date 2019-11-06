@@ -6,11 +6,12 @@
 @time: 2019/11/6 15:43
 @desc:
 """
+import os
 import numpy as np
 
 
 def window_rolling(origin_data, window_size):
-    """
+    """Rolling data over 0-dim.
     :param origin_data: ndarray of [n_records, ...]
     :param window_size: window_size
     :return: [n_records - window_size + 1, window_size, ...]
@@ -31,8 +32,7 @@ def window_rolling(origin_data, window_size):
 
 
 def split2batch_data(arrs, batch_size, keep_remainder=True):
-    """
-
+    """Iterate the array of arrs over 0-dim to get batch data.
     :param arrs: a list of [n_items, ...]
     :param batch_size:
     :param keep_remainder: Discard the remainder if False, otherwise keep it.
@@ -51,3 +51,14 @@ def split2batch_data(arrs, batch_size, keep_remainder=True):
 
         # update idx
         idx = next_idx
+
+
+def create_folder(*args):
+    """Create path if the folder doesn't exist.
+    :param args:
+    :return: The folder's path depends on operating system.
+    """
+    path = os.path.join(*args)
+    if not os.path.exists(path):
+        os.makedirs(path)
+    return path

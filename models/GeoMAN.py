@@ -22,8 +22,8 @@ class GeoMAN:
         self.hidden_size = config['hiddzen_size']
 
     @staticmethod
-    def activate_func(input):
-        return tf.nn.relu(input)
+    def activate_func(x_input):
+        return tf.nn.relu(x_input)
 
     @staticmethod
     def get_rnn_cell(rnn_hid, keep_prob):
