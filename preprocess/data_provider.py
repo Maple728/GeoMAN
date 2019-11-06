@@ -9,42 +9,44 @@
 
 import numpy as np
 
-
-def window_rolling(origin_data, window_size):
-    """
-    :param origin_data: ndarray of [n_records, num_seqs, dim]
-    :param window_size: window_size
-    :return: [n_records - window_size + 1, window_size, num_seqs, dim]
-    """
-    n_records = len(origin_data)
-    if n_records < window_size:
-        return None
-
-    data = origin_data[:, None]
-    all_data = []
-    for i in range(window_size):
-        all_data.append(data[i: (n_records - window_size + i + 1)])
-
-    # shape -> [n_records - window_size + 1, window_size, num_seqs, dim]
-    rolling_data = np.hstack(all_data)
-
-    return rolling_data
+from preprocess.utils import window_rolling, split2batch_data
 
 
 class DataProvider:
-    def __init__(self, data_source, T, horizon, batch_size):
+    def __init__(self, data_source, T, horizon, batch_size,
+                 is_provide_label=True):
         self._data_source = data_source
         self._batch_size = batch_size
         self._T = T
         self._horizon = horizon
+        self._is_provide_label = is_provide_label
+        if is_provide_label:
+            self._window_size = self._T + self._horizon
+        else:
+            self._window_size = self._T
 
-    def process_batch_data(self, record_datas):
+    def process_model_input(self, item_data):
         """
 
-        :param record_datas: []
+        :param item_data: [n_items, num_seqs, T + horizon, dim]
         :return:
         """
 
-        pass
+        x = item_data[:, :, : self._T, :]
+        y = item_data[:, :, : self._T, self._data_source.tgt_idx]
+        if self._is_provide_label is True:
+            label_y = item_data[:, :, self._T:, self._data_source.tgt_idx]
+            return x, y, label_y
+        else:
+            return x, y
 
+    def iterate_batch_data_with_label(self):
+        # record_data shape -> [n_records, num_seqs, dim]
+        for record_data in self._data_source.load_partition_data():
+            # process
+            # shape -> [n_items, num_seqs, window_size, dim]
+            item_data = np.transpose(window_rolling(record_data, self._window_size),
+                                     [0, 2, 1, 3])
+            inputs = self.process_model_input(item_data)
 
+            yield split2batch_data(inputs, self._batch_size, keep_remainder=True)
