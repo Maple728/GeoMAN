@@ -19,7 +19,25 @@ class GeoMAN:
         self.T = config['T']
         self.horizon = config['horizon']
         self.x_dim = config['x_dim']
-        self.hidden_size = config['hiddzen_size']
+        self.hidden_size = config['hidden_size']
+
+    def train(self, sess, batch_data, lr):
+        fd = {self.dropout_rate: 1.0,
+              self.lr: lr,
+              self.x_ph: batch_data[0],
+              self.y_ph: batch_data[1],
+              self.label_ph: batch_data[2]}
+        _, loss, pred, real = sess.run([self.train_op, self.loss, self.y_pred, self.label_ph], feed_dict=fd)
+        return loss, pred, real
+
+    def predict(self, sess, batch_data, lr=None):
+        fd = {self.dropout_rate: 0.0,
+              self.lr: lr,
+              self.x_ph: batch_data[0],
+              self.y_ph: batch_data[1],
+              self.label_ph: batch_data[2]}
+        loss, pred, real = sess.run([self.loss, self.y_pred, self.label_ph], feed_dict=fd)
+        return loss, pred, real
 
     @staticmethod
     def activate_func(x_input):
@@ -35,7 +53,7 @@ class GeoMAN:
         return rnn
 
     @staticmethod
-    def get_weights(name, shape, is_reg = True, collections = None):
+    def get_weights(name, shape, is_reg=True, collections=None):
         if is_reg:
             weights = tf.get_variable(name, shape=shape, dtype=tf.float32,
                                       initializer=tf.glorot_normal_initializer(),
@@ -47,7 +65,7 @@ class GeoMAN:
         return weights
 
     @staticmethod
-    def get_bias(name, shape, collections = None):
+    def get_bias(name, shape, collections=None):
         bias = tf.get_variable(name, shape=shape, dtype=tf.float32, initializer=tf.constant_initializer(0.1),
                                collections=collections)
         return bias
@@ -67,11 +85,10 @@ class GeoMAN:
 
     def after_build(self):
         with tf.name_scope('train'):
-            self.loss = tf.reduce_mean(tf.square(self.y_preds - self.label_ph))
+            self.loss = tf.reduce_mean(tf.square(self.y_pred - self.label_ph))
             self.optimizer = tf.train.AdamOptimizer(self.lr)
 
             self.train_op = self.optimizer.minimize(self.loss)
-
 
     def build(self):
         # build placeholders
@@ -136,7 +153,7 @@ class GeoMAN:
             with tf.variable_scope('decoder'):
                 decoder_rnn = self.get_rnn_cell(self.hidden_size, 1 - self.dropout_rate)
 
-                y_pred_ta = tf.TensorArray(tf.float32, size=self.T+self.horizon)
+                y_pred_ta = tf.TensorArray(tf.float32, size=self.T + self.horizon)
                 # shape -> [batch_size, num_seqs, hidden_size]
                 context_state = tf.reduce_mean(encoder_h_states, axis=-2, keepdims=False)
                 de_states = en_initial_states
@@ -147,8 +164,9 @@ class GeoMAN:
 
                     de_h_state, de_states = decoder_rnn.call(de_input, de_states)
 
+                    prev_state_concat = tf.concat(de_states, axis=-1)
                     # shape -> [batch_size, num_seqs, T, 1]
-                    gammas = self.temporal_attention(de_h_state, encoder_h_states, 'temporal_attention')
+                    gammas = self.temporal_attention(prev_state_concat, encoder_h_states, 'temporal_attention')
 
                     # shape -> [batch_size, num_seqs, hidden_size]
                     context_state = tf.reduce_sum(gammas * encoder_h_states, axis=-2, keepdims=False)
@@ -162,7 +180,7 @@ class GeoMAN:
                 # shape -> [batch_size, num_seqs, T + horizon]
                 y_preds = tf.squeeze(tf.transpose(y_pred_ta.stack(), perm=[1, 2, 0, 3]), axis=-1)
 
-            self.y_preds = y_preds[:, :, -self.horizon:]
+            self.y_pred = y_preds[:, :, -self.horizon:]
         # build training staff
         self.after_build()
 
@@ -240,7 +258,7 @@ class GeoMAN:
         """
         with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
             # create variables
-            att_v = self.get_weights('att_v', [self.T, 1])
+            att_v = self.get_weights('att_v', [self.hidden_size, 1])
             att_w = self.get_weights('att_w', [self.hidden_size * 2, self.hidden_size])
             att_u = self.get_weights('att_u', [self.hidden_size, self.hidden_size])
             att_b = self.get_bias('att_b', [self.hidden_size])
@@ -257,13 +275,3 @@ class GeoMAN:
             weights = tf.nn.softmax(e_logits, axis=-2)
 
             return weights
-
-
-config = {}
-config['num_seqs'] = 307
-config['T'] = 24
-config['horizon'] = 12
-config['x_dim'] = 3
-config['hiddzen_size'] = 128
-model = GeoMAN(config)
-model.build()

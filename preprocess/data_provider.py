@@ -9,7 +9,7 @@
 
 import numpy as np
 
-from preprocess.utils import window_rolling, split2batch_data
+from preprocess.utils import window_rolling, yield2batch_data
 
 
 class DataProvider:
@@ -18,6 +18,10 @@ class DataProvider:
         self._batch_size = batch_size
         self._T = T
         self._horizon = horizon
+
+    @property
+    def data_source(self):
+        return self._data_source
 
     def _process_model_input(self, feat_data, target_data, provide_label):
         """
@@ -51,7 +55,9 @@ class DataProvider:
             # shape -> [n_items, num_seqs, window_size, dim]
             feat_item_data = np.transpose(window_rolling(feat_data, window_size), [0, 2, 1, 3])
             # shape -> [n_items, num_seqs, window_size]
-            target_item_data = np.transpose(window_rolling(target_data, window_size), [0, 2, 1, 3])
+            target_item_data = np.transpose(window_rolling(target_data, window_size), [0, 2, 1])
             inputs = self._process_model_input(feat_item_data, target_item_data, provide_label)
 
-            yield split2batch_data(inputs, self._batch_size, keep_remainder=True)
+            # generate batch data
+            for batch_data in yield2batch_data(inputs, self._batch_size, keep_remainder=True):
+                yield batch_data

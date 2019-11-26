@@ -31,7 +31,7 @@ def window_rolling(origin_data, window_size):
     return rolling_data
 
 
-def split2batch_data(arrs, batch_size, keep_remainder=True):
+def yield2batch_data(arrs, batch_size, keep_remainder=True):
     """Iterate the array of arrs over 0-dim to get batch data.
     :param arrs: a list of [n_items, ...]
     :param batch_size:
@@ -62,3 +62,18 @@ def create_folder(*args):
     if not os.path.exists(path):
         os.makedirs(path)
     return path
+
+
+def normal_rmse_np(preds, labels):
+    preds = np.reshape(preds, [-1])
+    labels = np.reshape(labels, [-1])
+
+    rmse = np.sqrt(np.mean((preds - labels) ** 2))
+    return rmse
+
+def normal_mae_np(preds, labels):
+    preds = np.reshape(preds, [-1])
+    labels = np.reshape(labels, [-1])
+
+    mae = np.mean(np.abs(preds - labels))
+    return mae

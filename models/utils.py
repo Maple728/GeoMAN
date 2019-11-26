@@ -37,7 +37,6 @@ class LSTMCell:
 
         c_prev, m_prev = states
 
-        # TODO infer rank
         lstm_matrix = tensordot(tf.concat([inputs, m_prev], axis=-1),
                                 self._kernel)
         # shape -> [..., 4 * num_units]

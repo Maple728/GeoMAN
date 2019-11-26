@@ -8,8 +8,15 @@
 """
 
 import numpy as np
-from preprocess.scaler import MinMaxScaler
-from preprocess.data_source import StaticDataSource
+from preprocess.scaler import MinMaxScaler, MinMaxSingletonScaler
+from preprocess.data_source import DataSource
+from preprocess.utils import normal_rmse_np, normal_mae_np
+
+
+def metrics(preds, labels):
+    mae = normal_mae_np(preds, labels)
+    rmse = normal_rmse_np(preds, labels)
+    return {'MAE': mae, 'RMSE': rmse}
 
 
 class PEMS4DataLoader(object):
@@ -20,10 +27,12 @@ class PEMS4DataLoader(object):
         self.config = config
 
     def read_raw_data(self):
-        # [length, num_of_vertices (307), 3 (traffic flow, occupancy, speed)]
-        records = np.load(self.data_filename)
         tgt_idx = 0
-        x_dim = records.shape[-1]
+        # [length, num_of_vertices (307), 3 (traffic flow, occupancy, speed)]
+        records = np.load(self.data_filename)['data']
+
+        x_dim = records.shape[2]
+        num_seqs = records.shape[1]
 
         # split train, valid and test data set
         post_len = self.config['T']
@@ -44,11 +53,27 @@ class PEMS4DataLoader(object):
         test_feats = feat_scaler.scaling(test_records)
 
         # scaling target series
-        tgt_scaler = MinMaxScaler()
+        tgt_scaler = MinMaxSingletonScaler()
         train_tgts = tgt_scaler.fit_scaling(train_records[:, :, tgt_idx])
-        valid_tgts = feat_scaler.scaling(valid_records[:, :, tgt_idx])
-        test_tgts = feat_scaler.scaling(test_records[:, :, tgt_idx])
+        valid_tgts = tgt_scaler.scaling(valid_records[:, :, tgt_idx])
+        test_tgts = tgt_scaler.scaling(test_records[:, :, tgt_idx])
 
-        train_ds = StaticDataSource(x_dim, self.name, [train_feats, train_tgts])
-        valid_ds = StaticDataSource(x_dim, self.name, [valid_feats, valid_tgts])
-        test_ds = StaticDataSource(x_dim, self.name, [test_feats, test_tgts])
+        def get_retrieve_data_callback(data):
+            def func():
+                yield data
+            return func
+
+        train_ds = DataSource(x_dim, num_seqs, self.name + '_train',
+                              metric_callback=metrics,
+                              retrieve_data_callback=get_retrieve_data_callback([train_feats, train_tgts]),
+                              scaler=tgt_scaler, use_cache=True)
+        valid_ds = DataSource(x_dim, num_seqs, self.name + '_valid',
+                              metric_callback=metrics,
+                              retrieve_data_callback=get_retrieve_data_callback([valid_feats, valid_tgts]),
+                              scaler=tgt_scaler, use_cache=True)
+        test_ds = DataSource(x_dim, num_seqs, self.name + '_test',
+                             metric_callback=metrics,
+                             retrieve_data_callback=get_retrieve_data_callback([test_feats, test_tgts]),
+                             scaler=tgt_scaler, use_cache=True)
+
+        return train_ds, valid_ds, test_ds
